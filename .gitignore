@@ -1,0 +1,26 @@
+# Node dependencies
+node_modules/
+**/node_modules/
+
+# Next.js build output
+.next/
+**/.next/
+out/
+build/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Local agents and skills config
+.agents/
+skills/
+skills-lock.json
+
+# Environment files
+.env*
+
+# Ignore all markdown files except the root README.md
+**/*.md
+!/README.md
