@@ -489,22 +489,93 @@ export default function App() {
         runUrlSastScan(webUrl, simulatedFiles);
       }, 1500);
     } else if (activeTab === "git" && gitUrl) {
-      // Simulate git clone and scan
-      let currentFileIdx = 0;
-      const scanFiles = Object.keys(MOCK_EXPLORER_FILES);
-      const interval = setInterval(() => {
-        setScanProgress(prev => {
-          if (prev >= 60) {
-            clearInterval(interval);
-            setScannedFiles(MOCK_EXPLORER_FILES);
-            runSastScan(MOCK_EXPLORER_FILES, gitUrl.replace("https://github.com/", ""));
-            return 60;
-          }
-          setScanningFileName(scanFiles[currentFileIdx % scanFiles.length]);
-          currentFileIdx++;
-          return prev + 15;
+      setIsScanning(true);
+      setScanProgress(10);
+      setScanningFileName("Parsing repository URL...");
+
+      try {
+        const match = gitUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+        if (!match) {
+          throw new Error("Invalid GitHub URL. Must be like: https://github.com/owner/repo");
+        }
+        const owner = match[1];
+        let repo = match[2];
+        if (repo.endsWith(".git")) {
+          repo = repo.substring(0, repo.length - 4);
+        }
+
+        setScanProgress(20);
+        setScanningFileName("Fetching repository metadata...");
+        
+        const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+        if (!repoRes.ok) {
+          throw new Error(`Failed to fetch repo info: ${repoRes.statusText}. Check if it is a public repository.`);
+        }
+        const repoData = await repoRes.json();
+        const branch = repoData.default_branch || "main";
+
+        setScanProgress(30);
+        setScanningFileName("Fetching repository file tree...");
+        
+        const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+        if (!treeRes.ok) {
+          throw new Error(`Failed to fetch file tree: ${treeRes.statusText}`);
+        }
+        const treeData = await treeRes.json();
+        const filesToProcess = (treeData.tree || []).filter((item: any) => {
+          if (item.type !== "blob") return false;
+          const name = item.path.toLowerCase();
+          return name.endsWith('.py') || name.endsWith('.js') || name.endsWith('.ts') || 
+                 name.endsWith('.tsx') || name.endsWith('.jsx') || name.endsWith('.html') || 
+                 name.endsWith('.css') || name.endsWith('.sql') || name.endsWith('.php') || 
+                 name.endsWith('.go') || name.endsWith('.rs');
         });
-      }, 400);
+
+        if (filesToProcess.length === 0) {
+          throw new Error("No source code files found in the repository.");
+        }
+
+        const filesMap: Record<string, { content: string; vulnLine: number | null }> = {};
+        const maxFiles = 30;
+        const slicedFiles = filesToProcess.slice(0, maxFiles);
+
+        for (let i = 0; i < slicedFiles.length; i++) {
+          const file = slicedFiles[i];
+          setScanningFileName(file.path);
+          setScanProgress(30 + Math.floor((i / slicedFiles.length) * 35));
+
+          const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`;
+          const contentRes = await fetch(rawUrl);
+          if (contentRes.ok) {
+            const content = await contentRes.text();
+            filesMap[file.path] = { content, vulnLine: null };
+          }
+        }
+
+        setScanProgress(70);
+        setScannedFiles(filesMap);
+        runSastScan(filesMap, repo);
+
+      } catch (err: any) {
+        alert("Git Scan failed: " + err.message + ". Falling back to Simulation mode!");
+        
+        // Fallback to simulation
+        let currentFileIdx = 0;
+        const scanFiles = Object.keys(MOCK_EXPLORER_FILES);
+        const interval = setInterval(() => {
+          setScanProgress(prev => {
+            if (prev >= 60) {
+              clearInterval(interval);
+              setScannedFiles(MOCK_EXPLORER_FILES);
+              runSastScan(MOCK_EXPLORER_FILES, gitUrl.replace("https://github.com/", ""));
+              return 60;
+            }
+            setScanningFileName(scanFiles[currentFileIdx % scanFiles.length]);
+            currentFileIdx++;
+            return prev + 15;
+          });
+        }, 400);
+      }
     }
   };
 
