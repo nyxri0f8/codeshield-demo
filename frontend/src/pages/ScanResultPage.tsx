@@ -664,142 +664,237 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
   const handleExportReport = () => {
     if (!scan) return;
     
-    const findingsJson = JSON.stringify(findings);
-    const idorJson = JSON.stringify(idorEndpoints);
-    const complianceJson = JSON.stringify(complianceFlags);
+    // Replace </script> with <\/script> to prevent breaking the generated HTML script block
+    const findingsJson = JSON.stringify(findings).replace(/<\/script>/g, '<\\/script>');
+    const idorJson = JSON.stringify(idorEndpoints).replace(/<\/script>/g, '<\\/script>');
+    const complianceJson = JSON.stringify(complianceFlags).replace(/<\/script>/g, '<\\/script>');
     
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeShield Audit Report: ${scan.project_name}</title>
+    <title>CodeShield Security Audit Report: ${scan.project_name}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
         :root {
-            --bg-main: #050508;
-            --bg-card: rgba(10, 10, 15, 0.6);
+            --bg-main: #030305;
+            --bg-card: rgba(8, 8, 12, 0.75);
             --border-glass: rgba(255, 255, 255, 0.06);
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
-            --text-muted: #64748b;
+            --text-muted: #475569;
             --cyan-primary: #06b6d4;
-            --cyan-light: rgba(6, 182, 212, 0.1);
+            --cyan-light: rgba(6, 182, 212, 0.08);
             --rose-primary: #f43f5e;
-            --rose-light: rgba(244, 63, 94, 0.1);
+            --rose-light: rgba(244, 63, 94, 0.08);
             --orange-primary: #f97316;
-            --orange-light: rgba(249, 115, 22, 0.1);
+            --orange-light: rgba(249, 115, 22, 0.08);
             --emerald-primary: #10b981;
-            --emerald-light: rgba(16, 185, 129, 0.1);
+            --emerald-light: rgba(16, 185, 129, 0.08);
         }
+        
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
+        
         body {
             background-color: var(--bg-main);
             color: var(--text-primary);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             padding: 40px;
             line-height: 1.5;
+            position: relative;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
+
+        .ambient-glow-1 {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.05) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+        .ambient-glow-2 {
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(244, 63, 94, 0.03) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+        
         .container {
-            max-width: 1200px;
+            max-width: 1300px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
+        
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border-glass);
             padding-bottom: 24px;
-            margin-bottom: 32px;
+            margin-bottom: 36px;
         }
+        
         .header-title h1 {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 800;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.03em;
         }
+        
         .header-title p {
-            font-size: 0.875rem;
+            font-size: 0.85rem;
             color: var(--text-secondary);
             margin-top: 4px;
         }
+        
         .badge {
             background: var(--cyan-light);
             color: var(--cyan-primary);
             border: 1px solid rgba(6, 182, 212, 0.2);
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             font-weight: 700;
             padding: 4px 12px;
             border-radius: 99px;
             text-transform: uppercase;
+            letter-spacing: 0.1em;
+            display: inline-block;
         }
+        
+        .outer-card {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+            padding: 1px;
+            border-radius: 20px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+            margin-bottom: 24px;
+        }
+        
+        .inner-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 19px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+        }
+        
         .kpi-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
-            margin-bottom: 32px;
+            margin-bottom: 28px;
         }
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-glass);
-            border-radius: 20px;
-            padding: 24px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.2s, border-color 0.2s;
+        
+        @media (max-width: 900px) {
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
-        .card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(6, 182, 212, 0.2);
+        @media (max-width: 550px) {
+            .kpi-row {
+                grid-template-columns: 1fr;
+            }
         }
+        
         .kpi-label {
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
             font-weight: 700;
         }
+        
         .kpi-value {
-            font-size: 2.25rem;
+            font-size: 2.2rem;
             font-weight: 800;
-            margin-top: 8px;
-            color: var(--text-primary);
+            margin-top: 6px;
+            letter-spacing: -0.02em;
         }
+        
         .kpi-sub {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
+            font-size: 0.7rem;
+            color: var(--text-muted);
             margin-top: 4px;
         }
+
         .chart-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            grid-template-columns: 1fr 1fr;
             gap: 24px;
             margin-bottom: 32px;
         }
-        .chart-card {
-            min-height: 320px;
+        
+        @media (max-width: 800px) {
+            .chart-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card-inner {
+            height: 320px;
             display: flex;
             flex-direction: column;
         }
-        .chart-card h3 {
-            font-size: 1rem;
+        
+        .chart-card-inner h3 {
+            font-size: 0.85rem;
             font-weight: 700;
             margin-bottom: 20px;
             color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
+        
         .chart-container {
             flex: 1;
             position: relative;
         }
+
+        .compliance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .compliance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .compliance-info h4 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .compliance-info p {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
         .filters-bar {
             display: flex;
             gap: 16px;
-            background: rgba(255,255,255,0.02);
+            background: rgba(255, 255, 255, 0.02);
             border: 1px solid var(--border-glass);
             padding: 16px 24px;
             border-radius: 16px;
@@ -807,18 +902,21 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             align-items: center;
             flex-wrap: wrap;
         }
+        
         .filter-group {
             display: flex;
             align-items: center;
             gap: 8px;
         }
+        
         .filter-group label {
             font-size: 0.75rem;
             font-weight: 600;
             color: var(--text-secondary);
         }
-        .filter-group select {
-            background: #111118;
+        
+        .filter-group select, .filter-group input {
+            background: rgba(5, 5, 8, 0.8);
             border: 1px solid var(--border-glass);
             color: var(--text-primary);
             padding: 8px 16px;
@@ -827,121 +925,228 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             outline: none;
             cursor: pointer;
         }
+        
         .table-card {
-            padding: 0;
             overflow: hidden;
         }
-        .table-header {
-            padding: 24px;
-            border-bottom: 1px solid var(--border-glass);
-        }
-        .table-header h3 {
-            font-size: 1rem;
-            font-weight: 700;
-        }
+
         table {
             width: 100%;
             border-collapse: collapse;
             text-align: left;
         }
+        
         th {
             padding: 14px 24px;
-            font-size: 0.7rem;
-            color: var(--text-muted);
+            font-size: 0.65rem;
+            color: var(--text-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
+            font-weight: 700;
             border-bottom: 2px solid var(--border-glass);
             cursor: pointer;
             user-select: none;
         }
+        
         th:hover {
             color: var(--text-primary);
         }
+        
         td {
             padding: 16px 24px;
             font-size: 0.8rem;
             border-bottom: 1px solid var(--border-glass);
             color: var(--text-secondary);
         }
-        tr:hover td {
-            background: rgba(255,255,255,0.01);
+
+        .finding-row {
+            cursor: pointer;
+            transition: background 0.2s;
         }
+
+        .finding-row:hover td {
+            background: rgba(255, 255, 255, 0.015);
+        }
+
+        .finding-row.expanded td {
+            border-bottom: none;
+            background: rgba(255, 255, 255, 0.01);
+        }
+        
         .sev-badge {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             font-weight: 700;
             padding: 3px 10px;
             border-radius: 99px;
             text-transform: uppercase;
             display: inline-block;
+            letter-spacing: 0.05em;
         }
-        .sev-badge.critical { background: var(--rose-light); color: var(--rose-primary); border: 1px solid rgba(244,63,94,0.2); }
-        .sev-badge.high { background: var(--orange-light); color: var(--orange-primary); border: 1px solid rgba(249,115,22,0.2); }
-        .sev-badge.medium { background: rgba(234, 179, 8, 0.1); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.2); }
-        .sev-badge.low { background: var(--cyan-light); color: var(--cyan-primary); border: 1px solid rgba(6,182,212,0.2); }
+        .sev-badge.critical { background: var(--rose-light); color: var(--rose-primary); border: 1px solid rgba(244,63,94,0.15); }
+        .sev-badge.high { background: var(--orange-light); color: var(--orange-primary); border: 1px solid rgba(249,115,22,0.15); }
+        .sev-badge.medium { background: rgba(234, 179, 8, 0.08); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.15); }
+        .sev-badge.low { background: var(--cyan-light); color: var(--cyan-primary); border: 1px solid rgba(6,182,212,0.15); }
+        .sev-badge.informational { background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.1); }
+
+        .detail-expanded-row td {
+            padding: 0 24px 24px;
+            background: rgba(255, 255, 255, 0.01);
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .detail-wrapper {
+            background: rgba(3, 3, 5, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .detail-wrapper {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .detail-info {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .detail-section-title {
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .detail-text {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .code-container {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .code-block-wrap h5 {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+        .code-block-wrap.vulnerable h5 { color: var(--rose-primary); }
+        .code-block-wrap.secure h5 { color: var(--emerald-primary); }
+
         .code-box {
-            font-family: monospace;
-            background: #000;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            margin-top: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            background: #030305;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 0.72rem;
             white-space: pre-wrap;
-            border: 1px solid #111;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            overflow-x: auto;
+            line-height: 1.4;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .code-box.vulnerable {
+            border-left: 2px solid var(--rose-primary);
+            color: #fca5a5;
+        }
+        .code-box.secure {
+            border-left: 2px solid var(--emerald-primary);
+            color: #a7f3d0;
         }
     </style>
 </head>
 <body>
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
     <div class="container">
         <header>
             <div class="header-title">
-                <span class="badge">Security Audit Report</span>
+                <span class="badge">Security Posture Report</span>
                 <h1 style="margin-top: 8px;">${scan.project_name}</h1>
-                <p>Generated automatically by CodeShield X AI Platform on ${new Date().toLocaleString()}</p>
+                <p>AI-assisted codebase auditing powered by CodeShield X | Generated ${new Date().toLocaleString()}</p>
             </div>
-            <div>
-                <div style="font-size: 2.5rem; font-weight: 800; color: var(--cyan-primary); text-align: right;">${scan.overall_score}%</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Secure Posture Grade: ${scan.grade}</div>
+            <div style="text-align: right;">
+                <div style="font-size: 2.6rem; font-weight: 800; color: var(--cyan-primary); line-height: 1.1;">${scan.overall_score}%</div>
+                <div style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-top: 4px;">Health Grade: ${scan.grade}</div>
             </div>
         </header>
 
-        <div class="kpi-row">
-            <div class="card">
-                <div class="kpi-label">Secure Score</div>
-                <div class="kpi-value" id="score-val">${scan.overall_score}%</div>
-                <div class="kpi-sub">Target remediated: ${scan.projected_score || scan.overall_score}%</div>
-            </div>
-            <div class="card">
-                <div class="kpi-label">Total Findings</div>
-                <div class="kpi-value" id="findings-count">0</div>
-                <div class="kpi-sub">vulnerability occurrences</div>
-            </div>
-            <div class="card">
-                <div class="kpi-label">Critical & High Threats</div>
-                <div class="kpi-value" id="threats-count" style="color: var(--rose-primary);">0</div>
-                <div class="kpi-sub">require immediate remediation</div>
-            </div>
-            <div class="card">
-                <div class="kpi-label">IDOR Routes</div>
-                <div class="kpi-value" id="idor-count">0</div>
-                <div class="kpi-sub">access control validations</div>
-            </div>
-        </div>
-
-        <div class="chart-row">
-            <div class="card chart-card">
-                <h3>Vulnerabilities by Severity</h3>
-                <div class="chart-container">
-                    <canvas id="severity-chart"></canvas>
+        <section class="kpi-row">
+            <div class="outer-card">
+                <div class="inner-card">
+                    <div class="kpi-label">Health Rating</div>
+                    <div class="kpi-value" id="kpi-score" style="color: var(--cyan-primary);">${scan.overall_score}%</div>
+                    <div class="kpi-sub">Overall security index</div>
                 </div>
             </div>
-            <div class="card chart-card">
-                <h3>Distribution by OWASP Category</h3>
-                <div class="chart-container">
-                    <canvas id="category-chart"></canvas>
+            <div class="outer-card">
+                <div class="inner-card">
+                    <div class="kpi-label">Remediated Target</div>
+                    <div class="kpi-value" id="kpi-projected" style="color: var(--emerald-primary);">${scan.projected_score || scan.overall_score}%</div>
+                    <div class="kpi-sub">Score after fixing criticals</div>
                 </div>
             </div>
-        </div>
+            <div class="outer-card">
+                <div class="inner-card">
+                    <div class="kpi-label">Active Findings</div>
+                    <div class="kpi-value" id="kpi-findings">0</div>
+                    <div class="kpi-sub">Vulnerabilities remaining</div>
+                </div>
+            </div>
+            <div class="outer-card">
+                <div class="inner-card">
+                    <div class="kpi-label">High-Risk Threats</div>
+                    <div class="kpi-value" id="kpi-threats" style="color: var(--rose-primary);">0</div>
+                    <div class="kpi-sub">Critical & high severity</div>
+                </div>
+            </div>
+        </section>
 
+        <section class="chart-row">
+            <div class="outer-card">
+                <div class="inner-card chart-card-inner">
+                    <h3>Vulnerabilities by Severity</h3>
+                    <div class="chart-container">
+                        <canvas id="severity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="outer-card">
+                <div class="inner-card chart-card-inner">
+                    <h3>Distribution by OWASP Category</h3>
+                    <div class="chart-container">
+                        <canvas id="category-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em;">Compliance Posture</h3>
+        <section class="compliance-grid" id="compliance-container">
+        </section>
+
+        <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.08em;">Detailed Vulnerabilities Registry</h3>
+        
         <div class="filters-bar">
             <div class="filter-group">
                 <label for="filter-severity">Severity</label>
@@ -960,21 +1165,21 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
                     <option value="all">All Categories</option>
                 </select>
             </div>
+            <div class="filter-group" style="margin-left: auto;">
+                <input type="text" id="filter-search" placeholder="Search vulnerabilities..." oninput="applyFilters()" style="width: 200px; padding: 8px 16px;" />
+            </div>
         </div>
 
-        <div class="card table-card">
-            <div class="table-header">
-                <h3>Detailed Findings Registry</h3>
-            </div>
-            <div style="overflow-x: auto;">
+        <div class="outer-card table-card">
+            <div class="inner-card" style="padding: 0;">
                 <table id="findings-table">
                     <thead>
                         <tr>
-                            <th onclick="sortTable('severity')">Severity</th>
-                            <th onclick="sortTable('title')">Vulnerability Title</th>
-                            <th onclick="sortTable('file_path')">File Path</th>
-                            <th onclick="sortTable('line_number')">Line</th>
-                            <th onclick="sortTable('cvss_score')">CVSS</th>
+                            <th onclick="sortTable('severity')" style="width: 15%;">Severity</th>
+                            <th onclick="sortTable('title')" style="width: 45%;">Vulnerability Title</th>
+                            <th onclick="sortTable('file_path')" style="width: 25%;">File Path</th>
+                            <th onclick="sortTable('line_number')" style="width: 8%;">Line</th>
+                            <th onclick="sortTable('cvss_score')" style="width: 7%;">CVSS</th>
                         </tr>
                     </thead>
                     <tbody id="table-body">
@@ -989,16 +1194,33 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
         const IDOR = ${idorJson};
         const COMPLIANCE = ${complianceJson};
 
-        // Render KPIs
-        document.getElementById('findings-count').textContent = FINDINGS.length;
-        document.getElementById('idor-count').textContent = IDOR.length;
+        document.getElementById('kpi-findings').textContent = FINDINGS.length;
         
-        const threats = FINDINGS.filter(f => f.severity === 'Critical' || f.severity === 'High').length;
-        document.getElementById('threats-count').textContent = threats;
+        const threatsCount = FINDINGS.filter(f => f.severity === 'Critical' || f.severity === 'High').length;
+        document.getElementById('kpi-threats').textContent = threatsCount;
 
-        // Set up filters
+        const compContainer = document.getElementById('compliance-container');
+        if (COMPLIANCE.length === 0) {
+            compContainer.innerHTML = '<div class="compliance-item" style="grid-column: 1/-1; justify-content: center; color: var(--text-secondary);">No compliance flags recorded.</div>';
+        } else {
+            COMPLIANCE.forEach(c => {
+                const badgeColor = c.risk_level === 'Critical' ? 'var(--rose-primary)' : c.risk_level === 'High' ? 'var(--orange-primary)' : '#eab308';
+                compContainer.innerHTML += \`
+                    <div class="compliance-item">
+                        <div class="compliance-info">
+                            <h4>\${c.framework || 'Framework Evaluation'}</h4>
+                            <p>\${c.reason || 'No compliance violations observed.'}</p>
+                        </div>
+                        <span class="sev-badge" style="background: rgba(255,255,255,0.03); color: \${badgeColor}; border: 1px solid \${badgeColor}50;">
+                            \${c.risk_level} Risk
+                        </span>
+                    </div>
+                \`;
+            });
+        }
+
         const owaspSelect = document.getElementById('filter-owasp');
-        const uniqueOwasp = [...new Set(FINDINGS.map(f => f.owasp_category).filter(Boolean))];
+        const uniqueOwasp = [...new Set(FINDINGS.map(f => f.owasp_category).filter(Boolean))].sort();
         uniqueOwasp.forEach(cat => {
             const opt = document.createElement('option');
             opt.value = cat;
@@ -1006,7 +1228,6 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             owaspSelect.appendChild(opt);
         });
 
-        // Setup Charts
         let severityChart, categoryChart;
 
         function initCharts(data) {
@@ -1020,7 +1241,6 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
                 }
             });
 
-            // Severity Chart (Doughnut)
             const sevCtx = document.getElementById('severity-chart').getContext('2d');
             severityChart = new Chart(sevCtx, {
                 type: 'doughnut',
@@ -1029,7 +1249,7 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
                     datasets: [{
                         data: Object.values(sevCounts),
                         backgroundColor: ['#f43f5e', '#f97316', '#eab308', '#06b6d4', '#64748b'],
-                        borderColor: '#050508',
+                        borderColor: '#030305',
                         borderWidth: 2
                     }]
                 },
@@ -1037,31 +1257,40 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'right', labels: { color: '#f8fafc' } }
+                        legend: { 
+                            position: 'right', 
+                            labels: { color: '#f8fafc', font: { family: 'Plus Jakarta Sans', size: 11 } } 
+                        }
                     }
                 }
             });
 
-            // Category Chart (Bar)
             const catCtx = document.getElementById('category-chart').getContext('2d');
             categoryChart = new Chart(catCtx, {
                 type: 'bar',
                 data: {
                     labels: Object.keys(catCounts),
                     datasets: [{
-                        label: 'Findings',
                         data: Object.values(catCounts),
-                        backgroundColor: 'rgba(6, 182, 212, 0.7)',
+                        backgroundColor: 'rgba(6, 182, 212, 0.4)',
                         borderColor: '#06b6d4',
-                        borderWidth: 1
+                        borderWidth: 1.5,
+                        borderRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { ticks: { color: '#94a3b8' } },
-                        x: { ticks: { color: '#94a3b8' } }
+                        y: { 
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255,255,255,0.04)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10 } } 
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10 } } 
+                        }
                     },
                     plugins: {
                         legend: { display: false }
@@ -1071,6 +1300,7 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
         }
 
         let filteredFindings = [...FINDINGS];
+        let expandedFindingId = null;
 
         function renderTable(data) {
             const tbody = document.getElementById('table-body');
@@ -1082,19 +1312,102 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             }
 
             data.forEach(f => {
+                const isExpanded = expandedFindingId === f.id;
                 const tr = document.createElement('tr');
+                tr.className = 'finding-row' + (isExpanded ? ' expanded' : '');
+                tr.onclick = (e) => {
+                    if (e.target.closest('.code-box') || e.target.closest('a')) return;
+                    toggleRow(f.id);
+                };
+                
                 tr.innerHTML = \`
-                    <td><span class="sev-badge \\\${f.severity.toLowerCase()}">\\\${f.severity}</span></td>
+                    <td><span class="sev-badge \${f.severity.toLowerCase()}">\${f.severity}</span></td>
                     <td style="font-weight: 600; color: #f8fafc;">
-                        \\\${f.title}
-                        <div style="font-size:0.75rem; color:#94a3b8; font-weight:400; margin-top:4px;">\\\${f.description || ''}</div>
-                        \\\${f.vulnerable_snippet ? \\\`<div class="code-box"><code>\\\${escapeHtml(f.vulnerable_snippet)}</code></div>\\\` : ''}
+                        \${f.title}
+                        <div style="font-size:0.75rem; color:#94a3b8; font-weight:400; margin-top:2px;">\${f.owasp_category || 'General Security'}</div>
                     </td>
-                    <td style="font-family:monospace; color:#06b6d4;">\\\${f.file_path || 'unknown'}</td>
-                    <td>\\\${f.line_number || 1}</td>
-                    <td style="font-weight:700;">\\\${f.cvss_score || '0.0'}</td>
+                    <td style="font-family:'JetBrains Mono', monospace; color:#06b6d4; font-size:0.75rem;">\${f.file_path || 'unknown'}</td>
+                    <td style="font-family:'JetBrains Mono', monospace;">\${f.line_number || 1}</td>
+                    <td style="font-weight:700; color: \${getScoreColor(f.cvss_score || 0)};">\${f.cvss_score !== undefined ? f.cvss_score.toFixed(1) : '0.0'}</td>
                 \`;
                 tbody.appendChild(tr);
+
+                if (isExpanded) {
+                    const expandTr = document.createElement('tr');
+                    expandTr.className = 'detail-expanded-row';
+                    
+                    const parseNarrative = (text) => {
+                        const plainText = text || '';
+                        const partsArray = [];
+                        
+                        const attackMatch = plainText.match(/\\\[Attack Performed\\\]\\s*([^\\\[]+)/);
+                        const changeMatch = plainText.match(/\\\[System Change\\\]\\s*([^\\\[]+)/);
+                        const accessMatch = plainText.match(/\\\[Access Gained\\\]\\s*([^\\\[]+)/);
+                        const recMatch = plainText.match(/\\\[Recommendation\\\]\\s*([^\\\[]+)/);
+
+                        if (attackMatch) partsArray.push({ label: 'Attack Performed', content: attackMatch[1].trim() });
+                        if (changeMatch) partsArray.push({ label: 'System Change', content: changeMatch[1].trim() });
+                        if (accessMatch) partsArray.push({ label: 'Access Gained', content: accessMatch[1].trim() });
+                        if (recMatch) partsArray.push({ label: 'Recommendation', content: recMatch[1].trim() });
+
+                        if (partsArray.length === 0) {
+                            return [{ label: 'Threat Narrative', content: plainText }];
+                        }
+                        return partsArray;
+                    };
+
+                    const narrativeHtml = parseNarrative(f.attack_narrative).map(part => \`
+                        <div style="margin-top: 6px;">
+                            <span style="color: var(--rose-primary); font-weight: 700; text-transform: uppercase; font-size: 0.58rem; letter-spacing: 0.05em; display: inline-block; min-width: 120px;">\${part.label}</span>
+                            <span style="color: var(--text-secondary); font-size: 0.75rem;">\${part.content}</span>
+                        </div>
+                    \`).join('');
+
+                    expandTr.innerHTML = \`
+                        <td colspan="5">
+                            <div class="detail-wrapper">
+                                <div class="detail-info">
+                                    <div>
+                                        <div class="detail-section-title">Description</div>
+                                        <div class="detail-text">\${f.description || 'No descriptive context recorded.'}</div>
+                                    </div>
+                                    <div>
+                                        <div class="detail-section-title">Impact Analysis</div>
+                                        <div class="detail-text">\${f.impact_analysis || 'Exploiting this flaw could compromise system integrity and user access levels.'}</div>
+                                    </div>
+                                    \${f.attack_narrative ? \`
+                                    <div>
+                                        <div class="detail-section-title">Breach Narrative Simulation</div>
+                                        <div style="background: rgba(244, 63, 94, 0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(244,63,94,0.08);">
+                                            \${narrativeHtml}
+                                        </div>
+                                    </div>
+                                    \` : ''}
+                                    <div>
+                                        <div class="detail-section-title">Remediation Steps</div>
+                                        <div class="detail-text" style="color: var(--text-primary); font-weight: 500;">\${f.fix_recommendation || 'Apply parameterized inputs and perform boundary validation reviews.'}</div>
+                                    </div>
+                                </div>
+                                <div class="code-container">
+                                    \${f.vulnerable_snippet ? \`
+                                    <div class="code-block-wrap vulnerable">
+                                        <h5>Vulnerable Code Snippet</h5>
+                                        <div class="code-box vulnerable">\${escapeHtml(f.vulnerable_snippet)}</div>
+                                    </div>
+                                    \` : ''}
+                                    
+                                    \${f.secure_fix ? \`
+                                    <div class="code-block-wrap secure">
+                                        <h5>Remediated Secure Code</h5>
+                                        <div class="code-box secure">\${escapeHtml(f.secure_fix)}</div>
+                                    </div>
+                                    \` : ''}
+                                </div>
+                            </div>
+                        </td>
+                    \`;
+                    tbody.appendChild(expandTr);
+                }
             });
         }
 
@@ -1110,19 +1423,42 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             });
         }
 
+        function toggleRow(id) {
+            if (expandedFindingId === id) {
+                expandedFindingId = null;
+            } else {
+                expandedFindingId = id;
+            }
+            renderTable(filteredFindings);
+        }
+
+        function getScoreColor(cvss) {
+            if (cvss >= 8.0) return 'var(--rose-primary)';
+            if (cvss >= 5.0) return 'var(--orange-primary)';
+            if (cvss >= 3.0) return '#eab308';
+            return 'var(--cyan-primary)';
+        }
+
         function applyFilters() {
             const sev = document.getElementById('filter-severity').value;
             const cat = document.getElementById('filter-owasp').value;
+            const query = document.getElementById('filter-search').value.toLowerCase().trim();
 
             filteredFindings = FINDINGS.filter(f => {
                 if (sev !== 'all' && f.severity !== sev) return false;
                 if (cat !== 'all' && f.owasp_category !== cat) return false;
+                if (query) {
+                    const matchTitle = f.title.toLowerCase().includes(query);
+                    const matchDesc = (f.description || '').toLowerCase().includes(query);
+                    const matchFile = (f.file_path || '').toLowerCase().includes(query);
+                    if (!matchTitle && !matchDesc && !matchFile) return false;
+                }
                 return true;
             });
 
+            expandedFindingId = null;
             renderTable(filteredFindings);
 
-            // Update charts
             const sevCounts = { Critical: 0, High: 0, Medium: 0, Low: 0, Informational: 0 };
             const catCounts = {};
             filteredFindings.forEach(f => {
@@ -1140,8 +1476,8 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             categoryChart.update();
         }
 
-        let sortCol = '';
-        let sortAsc = true;
+        let sortCol = 'cvss_score';
+        let sortAsc = false;
         function sortTable(field) {
             if (sortCol === field) {
                 sortAsc = !sortAsc;
@@ -1166,7 +1502,6 @@ Return ONLY the secure replacement code block. Do not include markdown codeblock
             renderTable(sorted);
         }
 
-        // Init
         initCharts(FINDINGS);
         renderTable(FINDINGS);
     </script>
