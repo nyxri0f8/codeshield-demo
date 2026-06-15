@@ -155,13 +155,11 @@ export function generateStaticResult(staticFindings: StaticFinding[], sourceCode
 
   const lines = sourceCode.split('\n');
   const idor_endpoints: any[] = [];
-  let currentFile = 'main.js';
   let currentFileLine = 0;
 
   lines.forEach((line) => {
     const fileMatch = line.match(/^\/\/ FILE:\s*(.+)$/);
     if (fileMatch) {
-      currentFile = fileMatch[1].trim();
       currentFileLine = 0;
       return;
     }

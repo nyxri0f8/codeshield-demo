@@ -42,8 +42,16 @@ export function useAuth() {
   const signInWithEmail = (email: string, password: string) =>
     supabase.auth.signInWithPassword({ email, password });
 
-  const signUpWithEmail = (email: string, password: string) =>
-    supabase.auth.signUp({ email, password });
+  const signUpWithEmail = (email: string, password: string, fullName: string) =>
+    supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
 
   const signOut = () => {
     localStorage.removeItem('demo_user');

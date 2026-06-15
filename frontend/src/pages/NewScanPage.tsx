@@ -9,7 +9,6 @@ import { supabase } from '../lib/supabase';
 import { runStaticAnalysis, generateStaticResult } from '../lib/analyzer';
 import { analyzeWithGemini } from '../lib/gemini';
 import { calculateScore, calculateProjectedScore } from '../lib/scoreCalc';
-import { MOCK_SCAN } from '../lib/mockData';
 import { Sidebar } from '../components/Sidebar';
 import { ScanProgress } from '../components/ScanProgress';
 
