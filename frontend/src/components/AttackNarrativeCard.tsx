@@ -20,6 +20,27 @@ export function AttackNarrativeCard({ findings }: AttackNarrativeCardProps) {
     );
   }
 
+  // Parse structured sections like [Attack Performed] Text
+  const parseNarrative = (text: string) => {
+    const parts: { label: string; content: string }[] = [];
+    const regex = /\[([^\]]+)\]\s*([^\[]+)/g;
+    let match;
+    let hasMatches = false;
+
+    while ((match = regex.exec(text)) !== null) {
+      hasMatches = true;
+      parts.push({
+        label: match[1].trim(),
+        content: match[2].trim()
+      });
+    }
+
+    if (!hasMatches) {
+      return [{ label: 'Attack Scenario', content: text }];
+    }
+    return parts;
+  };
+
   return (
     <div className="double-bezel-outer">
       <div className="double-bezel-inner">
@@ -33,7 +54,7 @@ export function AttackNarrativeCard({ findings }: AttackNarrativeCardProps) {
           Based on detected vulnerabilities, this timeline simulates how a threat actor would chain exploits in a real-world attack:
         </p>
 
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '24px', paddingLeft: '24px' }}>
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '28px', paddingLeft: '24px' }}>
           {/* Vertical timeline connector line */}
           <div 
             style={{ 
@@ -64,24 +85,42 @@ export function AttackNarrativeCard({ findings }: AttackNarrativeCardProps) {
               />
               
               <div>
-                <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>
                   Exploit Vector #{i + 1} — {f.title} ({f.severity})
                 </span>
-                <p 
+                
+                <div 
                   style={{ 
-                    fontSize: '0.75rem', 
-                    color: '#fca5a5', 
-                    marginTop: '4px',
-                    fontFamily: 'var(--font-mono)',
-                    lineHeight: 1.5,
-                    background: 'rgba(244, 63, 94, 0.05)',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(244, 63, 94, 0.1)'
+                    marginTop: '8px',
+                    background: 'rgba(244, 63, 94, 0.02)',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(244, 63, 94, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
                   }}
                 >
-                  "{f.attack_narrative}"
-                </p>
+                  {parseNarrative(f.attack_narrative || '').map((part, idx) => (
+                    <div key={idx} style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      <span style={{ 
+                        color: 'var(--rose-primary)', 
+                        fontWeight: 700, 
+                        marginRight: '8px', 
+                        textTransform: 'uppercase', 
+                        fontSize: '0.58rem',
+                        letterSpacing: '0.05em',
+                        display: 'inline-block',
+                        minWidth: '130px'
+                      }}>
+                        {part.label}
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {part.content}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ))}

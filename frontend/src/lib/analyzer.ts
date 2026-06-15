@@ -144,7 +144,18 @@ export function generateStaticResult(staticFindings: StaticFinding[], sourceCode
       fix_recommendation: `Review and refactor code line ${f.line_number} in file ${f.file_path}. Avoid dangerous constructs and enforce boundary security checks.`,
       impact_analysis: `Exploiting this vulnerability could enable attackers to extract sensitive database files, compromise user sessions, or manipulate application controls.`,
       attack_narrative: f.severity === 'Critical' || f.severity === 'High'
-        ? `I navigated to ${f.file_path} and targeted line ${f.line_number} where the vulnerability was present. By executing custom payloads, I succeeded in bypassing authentication filters.`
+        ? (() => {
+            if (f.ruleId === 'sql-injection') {
+              return `[Attack Performed] Injected malicious inputs into database query paths. [System Change] Bypassed query validation filters. [Access Gained] Direct read/write access to administrative database records. [Recommendation] Implement parameterized queries.`;
+            } else if (f.ruleId === 'hardcoded-secret') {
+              return `[Attack Performed] Harvested plaintext secret credentials. [System Change] Compromised integrated api environment parameters. [Access Gained] External service privileges. [Recommendation] Store secrets in environment variables.`;
+            } else if (f.ruleId === 'eval-exec') {
+              return `[Attack Performed] Injected runtime instructions via input fields. [System Change] Ran shell code in server context. [Access Gained] Remote Code Execution (RCE) privileges. [Recommendation] Avoid eval and exec entirely.`;
+            } else if (f.ruleId === 'idor-route') {
+              return `[Attack Performed] Manipulated resource ID route variables. [System Change] Bypassed user access boundaries. [Access Gained] Unauthorized read/write permissions for other users' resources. [Recommendation] Enforce session-based ownership checks.`;
+            }
+            return `[Attack Performed] Targeted structural logic flaws in file ${f.file_path} at line ${f.line_number}. [System Change] Bypassed code integrity checks. [Access Gained] Escalated execution privileges. [Recommendation] Refactor code to apply strict input sanitization.`;
+          })()
         : undefined,
       file_path: f.file_path,
       line_number: f.line_number,

@@ -11,7 +11,7 @@ export interface Scan {
   id: string;
   user_id: string;
   project_name: string;
-  source_type: 'paste' | 'zip' | 'github';
+  source_type: 'paste' | 'zip' | 'github' | 'website';
   status: 'pending' | 'scanning' | 'done' | 'error';
   overall_score?: number;
   projected_score?: number;

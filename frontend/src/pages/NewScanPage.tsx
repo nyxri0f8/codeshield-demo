@@ -17,12 +17,13 @@ export default function NewScanPage() {
   const { geminiKey } = useGeminiKey(user?.id);
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'paste' | 'zip' | 'github'>('paste');
+  const [activeTab, setActiveTab] = useState<'paste' | 'zip' | 'github' | 'website'>('paste');
   const [projectName, setProjectName] = useState('');
   const [code, setCode] = useState('');
   const [gitUrl, setGitUrl] = useState('');
   const [gitToken, setGitToken] = useState(() => localStorage.getItem('codeshield_github_pat') || '');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState('');
 
   // Scanning progress state
   const [isScanning, setIsScanning] = useState(false);
@@ -35,11 +36,12 @@ export default function NewScanPage() {
 
   const handleScan = async () => {
     let sourceCode = code;
-    let type: 'paste' | 'zip' | 'github' = activeTab;
+    let type: 'paste' | 'zip' | 'github' | 'website' = activeTab;
 
     if (activeTab === 'paste' && !code.trim()) return;
     if (activeTab === 'zip' && !uploadFile) return;
     if (activeTab === 'github' && !gitUrl) return;
+    if (activeTab === 'website' && !websiteUrl) return;
 
     setIsScanning(true);
     setScanProgress(5);
@@ -156,6 +158,22 @@ export default function NewScanPage() {
           }
           sourceCode = fetchedCode || '// No matching source code files found in github repository branch.';
         }
+      } else if (activeTab === 'website' && websiteUrl) {
+        setScanStage('Fetching website document...');
+        setScanProgress(15);
+        
+        let targetUrl = websiteUrl.trim();
+        if (!/^https?:\/\//i.test(targetUrl)) {
+          targetUrl = 'https://' + targetUrl;
+        }
+
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(proxyUrl);
+        if (!res.ok) {
+          throw new Error(`Failed to fetch website contents (${res.status})`);
+        }
+        const text = await res.text();
+        sourceCode = `\n// FILE: index.html\n// SOURCE URL: ${targetUrl}\n${text}\n`;
       }
 
       // Demo mode: run static analysis + mock/static Gemini, store in localStorage, no Supabase
@@ -397,6 +415,13 @@ export default function NewScanPage() {
                 <Terminal className="h-3.5 w-3.5" strokeWidth={1.5} />
                 GitHub Link
               </button>
+              <button 
+                onClick={() => setActiveTab('website')}
+                className={`tab-btn ${activeTab === 'website' ? 'active' : ''}`}
+              >
+                <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
+                Website Link
+              </button>
             </div>
 
             {/* Content pane */}
@@ -482,6 +507,23 @@ export default function NewScanPage() {
                   </div>
                   <p className="input-help">Bypasses API rate limit (60 req/hr) and enables private repository scans.</p>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'website' && (
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 750 }}>Website URL Link</label>
+                <div className="text-input-container">
+                  <Globe className="input-icon" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="https://example.com" 
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    className="standard-input"
+                  />
+                </div>
+                <p className="input-help">Fetches web page document source code using client-side CORS bypass proxy.</p>
               </div>
             )}
 
