@@ -1095,3 +1095,12 @@ body {
 .laser-line-anim {
   animation: laser-line 3s linear infinite;
 }
+
+@media (max-width: 768px) {
+  .login-left-panel {
+    display: none !important;
+  }
+  .login-mobile-logo {
+    display: flex !important;
+  }
+}
