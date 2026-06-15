@@ -1,7 +1,7 @@
 export interface StaticFinding {
   ruleId: string;
   title: string;
-  severity: 'Critical' | 'High' | 'Medium' | 'Low';
+  severity: 'Critical' | 'High' | 'Medium' | 'Low' | 'Informational';
   line: number;
   snippet: string;
   isAiSmell: boolean;
@@ -74,21 +74,59 @@ export function runStaticAnalysis(code: string): StaticFinding[] {
 
   let currentFile = 'main.js';
   let currentFileLine = 0;
+
+  // Detect if the entire code snippet is a pasted .env file (no multi-file comments)
+  const hasMultipleFiles = code.includes('// FILE:');
+  const isPastedEnv = !hasMultipleFiles && (() => {
+    const nonCommentLines = lines.map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('//'));
+    if (nonCommentLines.length === 0) return false;
+    const envPattern = /^[A-Z_a-z][A-Z0-9_a-z\-]*\s*=/;
+    const matchCount = nonCommentLines.filter(l => envPattern.test(l)).length;
+    const isEnvRatio = matchCount / nonCommentLines.length > 0.5;
+    const hasCommonCodeKeywords = /\b(function|const|let|import|def|class|public|return|package)\b/.test(code);
+    return isEnvRatio && !hasCommonCodeKeywords;
+  })();
+
+  let currentFileIsEnv = isPastedEnv;
+
   const lineDetails = lines.map((line) => {
     const match = line.match(/^\/\/ FILE:\s*(.+)$/);
     if (match) {
       currentFile = match[1].trim();
       currentFileLine = 0;
-      return { file_path: currentFile, line_number: 0, isHeader: true };
+      currentFileIsEnv = currentFile.endsWith('.env') || currentFile === '.env' || currentFile.includes('.env.');
+      return { file_path: currentFile, line_number: 0, isHeader: true, isEnv: currentFileIsEnv };
     } else {
       currentFileLine++;
-      return { file_path: currentFile, line_number: currentFileLine, isHeader: false };
+      return { file_path: currentFile, line_number: currentFileLine, isHeader: false, isEnv: currentFileIsEnv };
     }
   });
 
+  const seenEnvFiles = new Set<string>();
+
   for (const rule of RULES) {
     lines.forEach((line, i) => {
-      if (lineDetails[i].isHeader) return;
+      const detail = lineDetails[i];
+      if (detail.isHeader) return;
+
+      // Skip checking if it is an env file line
+      if (detail.isEnv) {
+        if (!seenEnvFiles.has(detail.file_path)) {
+          seenEnvFiles.add(detail.file_path);
+          findings.push({
+            ruleId: 'env-file-notice',
+            title: 'Environment Configuration File (.env) Detected',
+            severity: 'Informational' as const,
+            line: 1,
+            snippet: 'Environment variables file contents.',
+            isAiSmell: false,
+            file_path: detail.file_path,
+            line_number: 1
+          });
+        }
+        return;
+      }
+
       rule.pattern.lastIndex = 0;
       if (rule.pattern.test(line)) {
         findings.push({
@@ -98,10 +136,23 @@ export function runStaticAnalysis(code: string): StaticFinding[] {
           line: i + 1,
           snippet: line.trim(),
           isAiSmell: rule.isAiSmell,
-          file_path: lineDetails[i].file_path,
-          line_number: lineDetails[i].line_number,
+          file_path: detail.file_path,
+          line_number: detail.line_number,
         });
       }
+    });
+  }
+
+  if (isPastedEnv && seenEnvFiles.size === 0) {
+    findings.push({
+      ruleId: 'env-file-notice',
+      title: 'Environment Configuration File (.env) Detected',
+      severity: 'Informational' as const,
+      line: 1,
+      snippet: 'Environment variables file contents.',
+      isAiSmell: false,
+      file_path: 'main.js',
+      line_number: 1
     });
   }
 
@@ -127,23 +178,34 @@ export function generateStaticResult(staticFindings: StaticFinding[], sourceCode
       secure_fix = `// Remediated: Properly log and handle errors\ncatch (err) {\n  console.error('Operation failed:', err);\n  res.status(500).send('Internal server error');\n}`;
     } else if (f.ruleId === 'missing-rate-limit') {
       secure_fix = `// Remediated: Apply rate limiter middleware on login\nconst rateLimit = require('express-rate-limit');\nconst loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5 });\nrouter.post('/login', loginLimiter, loginHandler);`;
+    } else if (f.ruleId === 'env-file-notice') {
+      secure_fix = `// Remediated: Ensure .env files are included in .gitignore and kept out of version control.`;
     } else {
       secure_fix = `// Apply appropriate secure practices to prevent vulnerabilities.`;
     }
 
+    const cvss = f.severity === 'Critical' ? 9.0 : f.severity === 'High' ? 7.5 : f.severity === 'Medium' ? 5.0 : f.severity === 'Low' ? 2.5 : 0.0;
+    const desc = f.ruleId === 'env-file-notice'
+      ? `An environment configuration (.env) file was detected in the scan target. Security analysis on this file was bypassed to avoid credential exposure false positives.`
+      : `A potential ${f.title.toLowerCase()} vulnerability was identified during static code analysis. This pattern is often associated with security posture weaknesses.`;
+
     return {
       id: `df-${idx}`,
       title: f.title,
-      description: `A potential ${f.title.toLowerCase()} vulnerability was identified during static code analysis. This pattern is often associated with security posture weaknesses.`,
+      description: desc,
       severity: f.severity,
-      cvss_score: f.severity === 'Critical' ? 9.0 : f.severity === 'High' ? 7.5 : f.severity === 'Medium' ? 5.0 : 2.5,
+      cvss_score: cvss,
       owasp_category: f.ruleId === 'sql-injection' ? 'A03:2021-Injection' : f.ruleId === 'hardcoded-secret' ? 'A02:2021-Cryptographic Failures' : 'A01:2021-Broken Access Control',
       cwe_id: f.ruleId === 'sql-injection' ? 'CWE-89' : f.ruleId === 'hardcoded-secret' ? 'CWE-798' : 'CWE-284',
       vulnerable_snippet: f.snippet,
       secure_fix,
-      fix_recommendation: `Review and refactor code line ${f.line_number} in file ${f.file_path}. Avoid dangerous constructs and enforce boundary security checks.`,
-      impact_analysis: `Exploiting this vulnerability could enable attackers to extract sensitive database files, compromise user sessions, or manipulate application controls.`,
-      attack_narrative: f.severity === 'Critical' || f.severity === 'High'
+      fix_recommendation: f.ruleId === 'env-file-notice'
+        ? `Ensure any .env files are listed in your .gitignore file.`
+        : `Review and refactor code line ${f.line_number} in file ${f.file_path}. Avoid dangerous constructs and enforce boundary security checks.`,
+      impact_analysis: f.ruleId === 'env-file-notice'
+        ? `Exposing .env configuration files in shared code repositories can leak sensitive API keys, database credentials, or auth secrets.`
+        : `Exploiting this vulnerability could enable attackers to extract sensitive database files, compromise user sessions, or manipulate application controls.`,
+      attack_narrative: (f.severity === 'Critical' || f.severity === 'High') && f.ruleId !== 'env-file-notice'
         ? (() => {
             if (f.ruleId === 'sql-injection') {
               return `[Attack Performed] Injected malicious inputs into database query paths. [System Change] Bypassed query validation filters. [Access Gained] Direct read/write access to administrative database records. [Recommendation] Implement parameterized queries.`;
@@ -167,10 +229,12 @@ export function generateStaticResult(staticFindings: StaticFinding[], sourceCode
   const lines = sourceCode.split('\n');
   const idor_endpoints: any[] = [];
   let currentFileLine = 0;
+  let currentFile = 'main.js';
 
   lines.forEach((line) => {
     const fileMatch = line.match(/^\/\/ FILE:\s*(.+)$/);
     if (fileMatch) {
+      currentFile = fileMatch[1].trim();
       currentFileLine = 0;
       return;
     }
@@ -186,7 +250,7 @@ export function generateStaticResult(staticFindings: StaticFinding[], sourceCode
         risk_level: 'High',
         has_auth_check: line.toLowerCase().includes('auth') || line.toLowerCase().includes('protect'),
         has_ownership_check: false,
-        reasoning: `Route parameter contains dynamic resource identifier '${match[3]}' which lacks verified access control check.`,
+        reasoning: `[${currentFile}] Route parameter contains dynamic resource identifier '${match[3]}' which lacks verified access control check.`,
         line_number: currentFileLine
       });
     }

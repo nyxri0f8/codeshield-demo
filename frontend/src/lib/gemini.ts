@@ -64,7 +64,7 @@ Also detect IDOR endpoints: routes with :id, :userId, :fileId etc. For each retu
 - risk_level ("High"|"Medium"|"Low")
 - has_auth_check (boolean)
 - has_ownership_check (boolean)
-- reasoning (1 sentence)
+- reasoning (1 sentence, starting with the bracketed file path e.g. "[app.js] Reasoning text")
 - line_number (integer)
 
 Also generate compliance flags based on the findings:
@@ -125,7 +125,7 @@ Respond ONLY with a valid JSON object like this (no markdown, no backticks, no e
     staticDefault.id = `df-${idx}`;
 
     if (match) {
-      const cvss = sf.severity === 'Critical' ? 9.0 : sf.severity === 'High' ? 7.5 : sf.severity === 'Medium' ? 5.0 : 2.5;
+      const cvss = sf.severity === 'Critical' ? 9.0 : sf.severity === 'High' ? 7.5 : sf.severity === 'Medium' ? 5.0 : sf.severity === 'Low' ? 2.5 : 0.0;
       
       let attackNarrative = match.attack_narrative || staticDefault.attack_narrative;
       if ((sf.severity === 'Critical' || sf.severity === 'High') && !attackNarrative) {
