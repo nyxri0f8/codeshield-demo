@@ -1,4 +1,6 @@
+import { generateStaticResult } from './analyzer';
 import type { StaticFinding } from './analyzer';
+
 
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -37,7 +39,10 @@ export async function analyzeWithGemini(
   const prompt = `
 You are a senior application security engineer performing a full code audit.
 
-Analyze the code and static pre-scan findings below. For EACH finding, return a JSON object with ALL these fields:
+Analyze the code and the provided static pre-scan findings.
+CRITICAL: You must return exactly one JSON finding object in the "findings" array for each corresponding static pre-scan finding provided. Do not add any new findings that are not in the static findings, and do not omit any of the static findings. Your job is to enrich the provided static findings with details.
+
+For EACH static finding, return a JSON object with ALL these fields:
 - title (string)
 - description (string, 2-3 sentences)
 - severity ("Critical" | "High" | "Medium" | "Low" | "Informational")
@@ -88,7 +93,7 @@ Respond ONLY with a valid JSON object like this (no markdown, no backticks, no e
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.15, maxOutputTokens: 8192 },
+      generationConfig: { temperature: 0, maxOutputTokens: 8192 },
     }),
   });
 
@@ -96,8 +101,64 @@ Respond ONLY with a valid JSON object like this (no markdown, no backticks, no e
 
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-  const clean = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  
+  let parsed: any = {};
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    parsed = JSON.parse(clean);
+  } catch (err) {
+    console.error("Failed to parse Gemini JSON output:", err, "Raw response:", text);
+    return generateStaticResult(staticFindings, code);
+  }
+
+  // Force align findings with staticFindings to make score completely deterministic
+  const enrichedFindings = staticFindings.map((sf, idx) => {
+    const match = (parsed.findings || []).find((gf: any) => {
+      if (!gf) return false;
+      if (gf.line_number === sf.line_number && gf.file_path === sf.file_path) return true;
+      if (gf.title?.toLowerCase() === sf.title?.toLowerCase()) return true;
+      if (gf.vulnerable_snippet && sf.snippet && (gf.vulnerable_snippet.includes(sf.snippet) || sf.snippet.includes(gf.vulnerable_snippet))) return true;
+      return false;
+    });
+
+    const staticDefault = generateStaticResult([sf], code).findings[0];
+    staticDefault.id = `df-${idx}`;
+
+    if (match) {
+      const cvss = sf.severity === 'Critical' ? 9.0 : sf.severity === 'High' ? 7.5 : sf.severity === 'Medium' ? 5.0 : 2.5;
+      
+      let attackNarrative = match.attack_narrative || staticDefault.attack_narrative;
+      if ((sf.severity === 'Critical' || sf.severity === 'High') && !attackNarrative) {
+        attackNarrative = `[Attack Performed] Targeted vulnerabilities in ${sf.file_path}. [System Change] Compromised standard function behavior. [Access Gained] Execution privileges on system resource. [Recommendation] Implement remediations.`;
+      }
+
+      return {
+        ...staticDefault,
+        ...match,
+        // Enforce static properties for perfect determinism:
+        id: `df-${idx}`,
+        title: sf.title,
+        severity: sf.severity,
+        cvss_score: cvss,
+        vulnerable_snippet: sf.snippet,
+        file_path: sf.file_path,
+        line_number: sf.line_number,
+        is_ai_smell: sf.isAiSmell,
+        attack_narrative: attackNarrative,
+      };
+    } else {
+      return staticDefault;
+    }
+  });
+
+  const idor_endpoints = parsed.idor_endpoints || [];
+  const compliance_flags = parsed.compliance_flags || [];
+
+  return {
+    findings: enrichedFindings,
+    idor_endpoints,
+    compliance_flags,
+  };
 }
 
 // AI Chat function
